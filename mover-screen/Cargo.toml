@@ -1,0 +1,28 @@
+[package]
+name = "mover-screen"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Screen capture and image recognition module for the mover automation library"
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+mover-core = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+image = "0.24"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.48", features = ["Win32_UI_Input_KeyboardAndMouse", "Win32_UI_WindowsAndMessaging"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+core-graphics = "0.22"
+core-foundation = "0.9"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+x11rb = "0.12"
+x11rb-protocol = "0.12"

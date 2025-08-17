@@ -1,0 +1,20 @@
+[package]
+name = "mover-keyboard"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "Keyboard control module for the mover automation library"
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+mover-core = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+enigo = { workspace = true }
+
+[[example]]
+name = "keyboard_demo"
+path = "examples/keyboard_demo.rs"

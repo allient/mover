@@ -1,0 +1,37 @@
+[workspace]
+resolver = "2"
+members = [
+    "mover-core",
+    "mover-mouse", 
+    "mover-keyboard",
+    "mover-screen",
+    "mover-utils",
+    "mover-macros",
+    "mover",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Your Name <your.email@example.com>"]
+description = "A Rust implementation of PyAutoGUI for cross-platform automation"
+license = "MIT"
+repository = "https://github.com/yourusername/mover"
+keywords = ["automation", "mouse", "keyboard", "screen", "gui"]
+categories = ["automation", "gui"]
+
+[workspace.dependencies]
+mover-core = { path = "./mover-core" }
+mover-mouse = { path = "./mover-mouse" }
+mover-keyboard = { path = "./mover-keyboard" }
+mover-screen = { path = "./mover-screen" }
+mover-utils = { path = "./mover-utils" }
+mover-macros = { path = "./mover-macros" }
+mover = { path = "./mover" }
+
+# Common dependencies
+thiserror = "1.0"
+anyhow = "1.0"
+log = "0.4"
+env_logger = "0.10"
+enigo = "0.5.0"

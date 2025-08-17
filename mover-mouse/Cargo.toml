@@ -1,0 +1,19 @@
+[package]
+name = "mover-mouse"
+version = "0.1.0"
+edition = "2021"
+description = "Mouse control module for the mover automation library"
+license = "MIT"
+repository = "https://github.com/yourusername/mover"
+keywords = ["automation", "mouse", "control", "gui", "testing"]
+categories = ["development-tools", "gui"]
+
+[dependencies]
+mover-core = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+enigo = { workspace = true }
+
+[[example]]
+name = "mouse_demo"
+path = "examples/mouse_demo.rs"

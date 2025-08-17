@@ -1,0 +1,25 @@
+[package]
+name = "mover"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+description = "A Rust implementation of PyAutoGUI for cross-platform automation"
+license.workspace = true
+repository.workspace = true
+keywords.workspace = true
+categories.workspace = true
+
+[dependencies]
+mover-core = { workspace = true }
+mover-mouse = { workspace = true }
+mover-keyboard = { workspace = true }
+mover-screen = { workspace = true }
+mover-utils = { workspace = true }
+mover-macros = { workspace = true }
+thiserror = { workspace = true }
+anyhow = { workspace = true }
+log = { workspace = true }
+env_logger = { workspace = true }
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full"] }
