@@ -1,8 +1,6 @@
-use mover_mouse::*;
+use mover_mouse::Mouse;
 use mover_core::types::MouseButton;
-use std::time::Duration;
 use std::f64::consts::PI;
-use std::thread;
 use std::io::Write;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -35,12 +33,13 @@ fn demo_basic_info() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📊 SECTION 1: Basic Information");
     println!("----------------------------------------");
 
+    let mouse = Mouse::new()?;
     // Get current mouse position
-    let pos = position()?;
+    let pos = mouse.position()?;
     println!("📍 Current mouse position: ({}, {})", pos.x, pos.y);
 
     // Get screen size
-    let screen = size()?;
+    let screen = mouse.size()?;
     println!("🖥️  Screen resolution: {}x{}", screen.width, screen.height);
 
     // Calculate center
@@ -49,7 +48,7 @@ fn demo_basic_info() -> Result<(), Box<dyn std::error::Error>> {
     println!("🎯 Screen center: ({}, {})", center_x, center_y);
 
     // Check if current position is on screen
-    let on_screen = on_screen(pos.x, pos.y)?;
+    let on_screen = mouse.on_screen(pos.x, pos.y)?;
     println!("✅ Current position on screen: {}", on_screen);
 
     Ok(())
@@ -59,33 +58,34 @@ fn demo_movements() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🚀 SECTION 2: Mouse Movements");
     println!("----------------------------------------");
 
-    let screen = size()?;
+    let mut mouse = Mouse::new()?;
+    let screen = mouse.size()?;
     let center_x = screen.width / 2;
     let center_y = screen.height / 2;
 
     println!("🔄 Moving to screen center...");
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     println!("⬆️  Moving up 100 pixels...");
-    move_by(0, -100)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_by(0, -100)?;
+    mouse.sleep(0.5);
 
     println!("➡️  Moving right 100 pixels...");
-    move_by(100, 0)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_by(100, 0)?;
+    mouse.sleep(0.5);
 
     println!("⬇️  Moving down 100 pixels...");
-    move_by(0, 100)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_by(0, 100)?;
+    mouse.sleep(0.5);
 
     println!("⬅️  Moving left 100 pixels...");
-    move_by(-100, 0)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_by(-100, 0)?;
+    mouse.sleep(0.5);
 
     println!("🎯 Returning to center...");
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     Ok(())
 }
@@ -94,34 +94,35 @@ fn demo_clicking() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🖱️  SECTION 3: Mouse Clicking");
     println!("----------------------------------------");
 
-    let screen = size()?;
+    let mut mouse = Mouse::new()?;
+    let screen = mouse.size()?;
     let center_x = screen.width / 2;
     let center_y = screen.height / 2;
 
     println!("👆 Left click at center...");
-    move_to(center_x, center_y)?;
-    left_click()?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.left_click()?;
+    mouse.sleep(0.5);
 
     println!("👆 Right click at center...");
-    move_to(center_x, center_y)?;
-    right_click()?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.right_click()?;
+    mouse.sleep(0.5);
 
     println!("👆 Middle click at center...");
-    move_to(center_x, center_y)?;
-    middle_click()?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.middle_click()?;
+    mouse.sleep(0.5);
 
     println!("👆👆 Double click at center...");
-    move_to(center_x, center_y)?;
-    double_click(Some(MouseButton::Left))?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.double_click(Some(MouseButton::Left))?;
+    mouse.sleep(0.5);
 
     println!("👆👆👆 Triple click at center...");
-    move_to(center_x, center_y)?;
-    triple_click(Some(MouseButton::Left))?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.triple_click(Some(MouseButton::Left))?;
+    mouse.sleep(0.5);
 
     Ok(())
 }
@@ -130,29 +131,30 @@ fn demo_scrolling() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n📜 SECTION 4: Mouse Scrolling");
     println!("----------------------------------------");
 
-    let screen = size()?;
+    let mut mouse = Mouse::new()?;
+    let screen = mouse.size()?;
     let center_x = screen.width / 2;
     let center_y = screen.height / 2;
 
     println!("🔄 Moving to center for scrolling...");
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     println!("⬆️  Scrolling up 3 clicks...");
-    scroll(3)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.scroll(3)?;
+    mouse.sleep(0.5);
 
     println!("⬇️  Scrolling down 3 clicks...");
-    scroll(-3)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.scroll(-3)?;
+    mouse.sleep(0.5);
 
     println!("➡️  Scrolling right 2 clicks...");
-    hscroll(2)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.hscroll(2)?;
+    mouse.sleep(0.5);
 
     println!("⬅️  Scrolling left 2 clicks...");
-    hscroll(-2)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.hscroll(-2)?;
+    mouse.sleep(0.5);
 
     Ok(())
 }
@@ -161,13 +163,14 @@ fn demo_advanced_patterns() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🎨 SECTION 5: Advanced Movement Patterns");
     println!("----------------------------------------");
 
-    let screen = size()?;
+    let mut mouse = Mouse::new()?;
+    let screen = mouse.size()?;
     let center_x = screen.width / 2;
     let center_y = screen.height / 2;
 
     println!("🔄 Moving to center...");
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     // Draw a square
     println!("⬜ Drawing a square...");
@@ -175,24 +178,24 @@ fn demo_advanced_patterns() -> Result<(), Box<dyn std::error::Error>> {
     let half_size = size / 2;
     
     // Top-left corner
-    move_to(center_x - half_size, center_y - half_size)?;
-    thread::sleep(Duration::from_millis(100));
+    mouse.move_to(center_x - half_size, center_y - half_size)?;
+    mouse.sleep(0.1);
     
     // Top-right corner
-    move_to(center_x + half_size, center_y - half_size)?;
-    thread::sleep(Duration::from_millis(100));
+    mouse.move_to(center_x + half_size, center_y - half_size)?;
+    mouse.sleep(0.1);
     
     // Bottom-right corner
-    move_to(center_x + half_size, center_y + half_size)?;
-    thread::sleep(Duration::from_millis(100));
+    mouse.move_to(center_x + half_size, center_y + half_size)?;
+    mouse.sleep(0.1);
     
     // Bottom-left corner
-    move_to(center_x - half_size, center_y + half_size)?;
-    thread::sleep(Duration::from_millis(100));
+    mouse.move_to(center_x - half_size, center_y + half_size)?;
+    mouse.sleep(0.1);
     
     // Back to center
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     Ok(())
 }
@@ -201,26 +204,27 @@ fn demo_circular_movement() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n⭕ SECTION 6: Circular Movement");
     println!("----------------------------------------");
 
-    let screen = size()?;
+    let mut mouse = Mouse::new()?;
+    let screen = mouse.size()?;
     let center_x = screen.width / 2;
     let center_y = screen.height / 2;
     let radius = 100;
 
     println!("🔄 Moving to center...");
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     println!("⭕ Drawing clockwise circle (3 seconds)...");
     draw_circle(center_x, center_y, radius, true, 3.0)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.sleep(0.5);
 
     println!("⭕ Drawing counter-clockwise circle (3 seconds)...");
     draw_circle(center_x, center_y, radius, false, 3.0)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.sleep(0.5);
 
     println!("🎯 Returning to center...");
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     Ok(())
 }
@@ -229,7 +233,8 @@ fn demo_sine_wave_movement() -> Result<(), Box<dyn std::error::Error>> {
     println!("\n🌊 SECTION 7: Sine Wave Movement");
     println!("----------------------------------------");
 
-    let screen = size()?;
+    let mut mouse = Mouse::new()?;
+    let screen = mouse.size()?;
     let center_x = screen.width / 2;
     let center_y = screen.height / 2;
     let amplitude = 80; // pixels for vertical oscillation
@@ -241,8 +246,8 @@ fn demo_sine_wave_movement() -> Result<(), Box<dyn std::error::Error>> {
     let start_y = center_y;
 
     // Move to starting position
-    move_to(start_x, start_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(start_x, start_y)?;
+    mouse.sleep(0.5);
 
     println!("🌊 Drawing sine wave pattern (8 seconds)...");
     println!("   📏 Wave width: {} pixels", wave_width);
@@ -264,27 +269,28 @@ fn demo_sine_wave_movement() -> Result<(), Box<dyn std::error::Error>> {
         
         if i == 0 {
             // First point - just move there
-            move_to(x, y)?;
+            mouse.move_to(x, y)?;
         } else {
             // Subsequent points - drag to create continuous wave line
-            move_to(x, y)?;
+            mouse.move_to(x, y)?;
         }
         
         // Smooth timing for the wave
-        thread::sleep(Duration::from_millis((time_per_point * 1000.0) as u64));
+        mouse.sleep(time_per_point);
     }
 
     println!("✅ Sine wave movement completed!");
 
     // Return to center
-    move_to(center_x, center_y)?;
-    thread::sleep(Duration::from_millis(500));
+    mouse.move_to(center_x, center_y)?;
+    mouse.sleep(0.5);
 
     Ok(())
 }
 
 /// Draws a circle by moving the mouse in a circular pattern
 fn draw_circle(center_x: i32, center_y: i32, radius: i32, clockwise: bool, duration: f64) -> Result<(), Box<dyn std::error::Error>> {
+    let mut mouse = Mouse::new()?;
     let num_points = 36; // 36 points = 10° intervals
     let total_angle = 2.0 * PI;
     
@@ -303,14 +309,14 @@ fn draw_circle(center_x: i32, center_y: i32, radius: i32, clockwise: bool, durat
         
         if i == 0 {
             // First point - just move there
-            move_to(x, y)?;
+            mouse.move_to(x, y)?;
         } else {
             // Subsequent points - drag to create continuous line
-            drag_to(x, y, Some(MouseButton::Left))?;
+            mouse.drag_to(x, y, Some(MouseButton::Left))?;
         }
         
         // Small delay for smooth animation
-        thread::sleep(Duration::from_millis((time_per_point * 1000.0) as u64));
+        mouse.sleep(time_per_point);
     }
     
     Ok(())
@@ -318,10 +324,11 @@ fn draw_circle(center_x: i32, center_y: i32, radius: i32, clockwise: bool, durat
 
 /// Helper function for countdown
 fn countdown(seconds: u32) {
+    let mouse = Mouse::new().unwrap();
     for i in (1..=seconds).rev() {
         print!("{} ", i);
         std::io::stdout().flush().ok();
-        thread::sleep(Duration::from_secs(1));
+        mouse.sleep(1.0);
     }
     println!("0");
 }

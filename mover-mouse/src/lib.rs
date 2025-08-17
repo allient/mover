@@ -1,42 +1,73 @@
 //! Mouse control module for the mover automation library
 //! 
 //! This module provides comprehensive mouse control functionality similar to PyAutoGUI,
-//! including movement, clicking, dragging, and scrolling operations.
+//! including movement, clicking, dragging, and scrolling.
 //! 
 //! Uses the `enigo` crate for cross-platform mouse control implementation.
 //! 
 //! # Features
 //! 
 //! - **Cross-Platform Support**: Works on Windows, macOS, and Linux
-//! - **Real Mouse Control**: Actual mouse movement, clicking, and scrolling
+//! - **Real Mouse Control**: Actual mouse movements, clicks, and scrolling
 //! - **Smooth Animations**: Tweening functions for natural mouse movements
 //! - **Comprehensive API**: All the mouse functions you need for automation
 //! - **Type Safety**: Rust's type system ensures safe mouse operations
+//! - **Error Handling**: Proper error handling with `Result` types
 //! 
 //! # Quick Start
 //! 
 //! ```rust
-//! use mover_mouse::*;
+//! use mover_mouse::Mouse;
 //! 
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
-//!     // Get current mouse position
-//!     let pos = position()?;
-//!     println!("Mouse is at: {}", pos);
+//!     // Create a mouse instance
+//!     let mouse = Mouse::new()?;
 //!     
-//!     // Move mouse to coordinates (100, 200)
-//!     move_to(100, 200)?;
+//!     // Get current position
+//!     let pos = mouse.position()?;
 //!     
-//!     // Click at current position
-//!     left_click()?;
+//!     // Move to center of screen
+//!     let screen = mouse.size()?;
+//!     mouse.move_to(screen.width / 2, screen.height / 2)?;
 //!     
+//!     // Click
+//!     mouse.left_click()?;
+//!     
+//!     Ok(())
+//! }
+//! ```
+//! 
+//! ## Smooth Mouse Movement
+//! 
+//! ```rust
+//! use mover_mouse::Mouse;
+//! use mover_core::ease_in_out_quad;
+//! 
+//! fn smooth_mouse_movement() -> Result<(), Box<dyn std::error::Error>> {
+//!     let mouse = Mouse::new()?;
+//!     // Move with smooth animation over 2 seconds
+//!     mouse.move_to_with_tween(500, 300, 2.0, ease_in_out_quad)?;
+//!     Ok(())
+//! }
+//! ```
+//! 
+//! ## Mouse Dragging
+//! 
+//! ```rust
+//! use mover_mouse::Mouse;
+//! use mover_core::types::MouseButton;
+//! 
+//! fn mouse_dragging() -> Result<(), Box<dyn std::error::Error>> {
+//!     let mouse = Mouse::new()?;
+//!     // Drag from current position to (300, 400)
+//!     mouse.drag_to(300, 400, Some(MouseButton::Left))?;
 //!     Ok(())
 //! }
 //! ```
 
 use mover_core::{MoverResult, Point, Size, TweenFn};
 use enigo::{Button as EnigoMouseButton, Enigo, Settings, Direction, Coordinate, Axis, Mouse as EnigoMouse};
-use std::time::Duration;
-use std::thread;
+use std::{thread, time::Duration};
 use std::io::Write;
 
 // Re-export commonly used types for convenience
@@ -58,50 +89,200 @@ pub use mover_core::MouseButton;
 /// use mover_mouse::Mouse;
 /// 
 /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+///     // Create a mouse instance
+///     let mouse = Mouse::new()?;
+///     
 ///     // Get current position
-///     let pos = Mouse::position()?;
+///     let pos = mouse.position()?;
 /// 
 ///     // Move to specific coordinates
-///     Mouse::move_to(100, 200)?;
+///     mouse.move_to(100, 200)?;
 /// 
 ///     // Click with left button
-///     Mouse::left_click()?;
+///     mouse.left_click()?;
 ///     Ok(())
 /// }
 /// ```
-pub struct Mouse;
+pub struct Mouse {
+    enigo: Enigo,
+}
 
 impl Mouse {
+    /// Create a new Mouse instance
+    pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let enigo = Enigo::new(&Settings::default())
+            .map_err(|e| mover_core::MoverError::PlatformError(
+                mover_core::PlatformError::UnsupportedOperation(
+                    format!("Failed to create Enigo instance: {}", e)
+                )
+            ))?;
+        Ok(Mouse { enigo })
+    }
+
     // Position and Information Functions
     // =================================
     
     /// Returns the current xy coordinates of the mouse cursor.
-    pub fn position() -> MoverResult<Point> {
-        let enigo = Enigo::new(&Settings::default()).unwrap();
-        let (x, y) = enigo.location().unwrap();
+    /// 
+    /// This function queries the operating system for the current mouse position
+    /// and returns it as a `Point` struct.
+    /// 
+    /// # Returns
+    /// 
+    /// - `Ok(Point)` - The current mouse coordinates
+    /// - `Err(MoverError)` - If the position cannot be retrieved
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use mover_mouse::Mouse;
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let mouse = Mouse::new()?;
+    ///     let pos = mouse.position()?;
+    ///     println!("Mouse is at: ({}, {})", pos.x, pos.y);
+    ///     Ok(())
+    /// }
+    /// ```
+    /// 
+    /// # Platform Notes
+    /// 
+    /// - **Windows**: Uses Windows API to get cursor position
+    /// - **macOS**: Uses Core Graphics to get cursor position  
+    /// - **Linux**: Uses X11 to get cursor position
+    pub fn position(&self) -> MoverResult<Point> {
+        let (x, y) = self.enigo.location()
+            .map_err(|e| mover_core::MoverError::PlatformError(
+                mover_core::PlatformError::UnsupportedOperation(
+                    format!("Failed to get mouse position: {}", e)
+                )
+            ))?;
         Ok(Point::new(x, y))
     }
     
     /// Returns the width and height of the primary display.
-    pub fn size() -> MoverResult<Size> {
-        let enigo = Enigo::new(&Settings::default()).unwrap();
-        let (width, height) = enigo.main_display().unwrap();
+    /// 
+    /// This function queries the operating system for the screen dimensions
+    /// and returns them as a `Size` struct.
+    /// 
+    /// # Returns
+    /// 
+    /// - `Ok(Size)` - The screen dimensions (width × height)
+    /// - `Err(MoverError)` - If the screen size cannot be retrieved
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use mover_mouse::Mouse;
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let mouse = Mouse::new()?;
+    ///     let screen = mouse.size()?;
+    ///     println!("Screen resolution: {}x{}", screen.width, screen.height);
+    /// 
+    ///     // Calculate center of screen
+    ///     let center_x = screen.width / 2;
+    ///     let center_y = screen.height / 2;
+    ///     Ok(())
+    /// }
+    /// ```
+    /// 
+    /// # Platform Notes
+    /// 
+    /// - **Windows**: Uses Windows API to get screen dimensions
+    /// - **macOS**: Uses Core Graphics to get screen dimensions
+    /// - **Linux**: Uses X11 to get screen dimensions
+    pub fn size(&self) -> MoverResult<Size> {
+        let (width, height) = self.enigo.main_display()
+            .map_err(|e| mover_core::MoverError::PlatformError(
+                mover_core::PlatformError::UnsupportedOperation(
+                    format!("Failed to get screen size: {}", e)
+                )
+            ))?;
         Ok(Size::new(width, height))
     }
     
-    /// Returns whether the given xy coordinates are on the screen.
-    pub fn on_screen(x: i32, y: i32) -> MoverResult<bool> {
-        let screen_size = Self::size()?;
-        Ok(x >= 0 && x < screen_size.width && y >= 0 && y < screen_size.height)
+    /// Returns whether the given coordinates are on the screen.
+    /// 
+    /// This function checks if the specified coordinates fall within
+    /// the bounds of the primary display.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `x` - The x coordinate to check
+    /// * `y` - The y coordinate to check
+    /// 
+    /// # Returns
+    /// 
+    /// - `Ok(bool)` - `true` if coordinates are on screen, `false` otherwise
+    /// - `Err(MoverError)` - If the check cannot be performed
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use mover_mouse::Mouse;
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let mouse = Mouse::new()?;
+    ///     
+    ///     // Check if (100, 200) is on screen
+    ///     let on_screen = mouse.on_screen(100, 200)?;
+    ///     println!("Point (100, 200) is on screen: {}", on_screen);
+    ///     
+    ///     // Check if (-100, -200) is on screen (should be false)
+    ///     let on_screen = mouse.on_screen(-100, -200)?;
+    ///     println!("Point (-100, -200) is on screen: {}", on_screen);
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn on_screen(&self, x: i32, y: i32) -> MoverResult<bool> {
+        let screen = self.size()?;
+        Ok(x >= 0 && y >= 0 && x < screen.width && y < screen.height)
     }
-    
+
     // Movement Functions
     // ==================
     
-    /// Moves the mouse cursor to a point on the screen.
-    pub fn move_to(x: i32, y: i32) -> MoverResult<()> {
-        let mut enigo = Enigo::new(&Settings::default()).unwrap();
-        enigo.move_mouse(x, y, Coordinate::Abs)
+    /// Moves the mouse cursor to the given x and y coordinates.
+    /// 
+    /// This function moves the mouse cursor to the specified absolute coordinates
+    /// on the screen. The movement is instant (no animation).
+    /// 
+    /// # Arguments
+    /// 
+    /// * `x` - The target x coordinate
+    /// * `y` - The target y coordinate
+    /// 
+    /// # Returns
+    /// 
+    /// - `Ok(())` - Mouse moved successfully
+    /// - `Err(MoverError)` - If the movement failed
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use mover_mouse::Mouse;
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let mouse = Mouse::new()?;
+    ///     
+    ///     // Move to specific coordinates
+    ///     mouse.move_to(500, 300)?;
+    ///     
+    ///     // Move to center of screen
+    ///     let screen = mouse.size()?;
+    ///     mouse.move_to(screen.width / 2, screen.height / 2)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    /// 
+    /// # Platform Notes
+    /// 
+    /// - **Windows**: Uses Windows API to move cursor
+    /// - **macOS**: Uses Core Graphics to move cursor
+    /// - **Linux**: Uses X11 to move cursor
+    pub fn move_to(&mut self, x: i32, y: i32) -> MoverResult<()> {
+        self.enigo.move_mouse(x, y, Coordinate::Abs)
             .map_err(|e| mover_core::MoverError::PlatformError(
                 mover_core::PlatformError::UnsupportedOperation(
                     format!("Failed to move mouse: {}", e)
@@ -110,18 +291,76 @@ impl Mouse {
         Ok(())
     }
     
-    /// Moves the mouse cursor to a point on the screen with linear animation.
-    pub fn move_to_with_duration(x: i32, y: i32, duration: f64) -> MoverResult<()> {
-        Self::move_to_with_tween(x, y, duration, mover_core::linear_tween)
+    /// Moves the mouse cursor to a point on the screen with animation.
+    /// 
+    /// This function moves the mouse cursor to the specified coordinates
+    /// over the given duration using linear interpolation.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `x` - The target x coordinate
+    /// * `y` - The target y coordinate
+    /// * `duration` - The duration of the movement in seconds
+    /// 
+    /// # Returns
+    /// 
+    /// - `Ok(())` - Mouse moved successfully
+    /// - `Err(MoverError)` - If the movement failed
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use mover_mouse::Mouse;
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let mouse = Mouse::new()?;
+    ///     
+    ///     // Move to (500, 300) over 2 seconds
+    ///     mouse.move_to_with_duration(500, 300, 2.0)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn move_to_with_duration(&mut self, x: i32, y: i32, duration: f64) -> MoverResult<()> {
+        self.move_to_with_tween(x, y, duration, mover_core::linear_tween)
     }
     
     /// Moves the mouse cursor to a point on the screen with custom tweening animation.
-    pub fn move_to_with_tween(x: i32, y: i32, duration: f64, tween: TweenFn) -> MoverResult<()> {
+    /// 
+    /// This function moves the mouse cursor to the specified coordinates
+    /// over the given duration using the provided tweening function.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `x` - The target x coordinate
+    /// * `y` - The target y coordinate
+    /// * `duration` - The duration of the movement in seconds
+    /// * `tween` - The tweening function to use for animation
+    /// 
+    /// # Returns
+    /// 
+    /// - `Ok(())` - Mouse moved successfully
+    /// - `Err(MoverError)` - If the movement failed
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use mover_mouse::Mouse;
+    /// use mover_core::ease_in_out_quad;
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let mouse = Mouse::new()?;
+    ///     
+    ///     // Move with smooth easing
+    ///     mouse.move_to_with_tween(500, 300, 2.0, ease_in_out_quad)?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn move_to_with_tween(&mut self, x: i32, y: i32, duration: f64, tween: TweenFn) -> MoverResult<()> {
         if duration <= 0.0 {
-            return Self::move_to(x, y);
+            return self.move_to(x, y);
         }
         
-        let start_pos = Self::position()?;
+        let start_pos = self.position()?;
         let steps = (duration * 60.0).max(1.0) as usize; // 60 FPS
         
         for i in 0..=steps {
@@ -131,10 +370,10 @@ impl Mouse {
             let current_x = start_pos.x + ((x - start_pos.x) as f64 * tweened_progress) as i32;
             let current_y = start_pos.y + ((y - start_pos.y) as f64 * tweened_progress) as i32;
             
-            Self::move_to(current_x, current_y)?;
+            self.move_to(current_x, current_y)?;
             
             if i < steps {
-                thread::sleep(Duration::from_secs_f64(duration / steps as f64));
+                self.sleep(duration / steps as f64);
             }
         }
         
@@ -142,36 +381,64 @@ impl Mouse {
     }
     
     /// Moves the mouse cursor relative to current position
-    pub fn move_by(dx: i32, dy: i32) -> MoverResult<()> {
-        let current_pos = Self::position()?;
+    pub fn move_by(&mut self, dx: i32, dy: i32) -> MoverResult<()> {
+        let current_pos = self.position()?;
         let target_x = current_pos.x + dx;
         let target_y = current_pos.y + dy;
-        Self::move_to(target_x, target_y)
+        self.move_to(target_x, target_y)
     }
     
     /// Moves the mouse cursor relative to current position with animation
-    pub fn move_by_with_duration(dx: i32, dy: i32, duration: f64) -> MoverResult<()> {
-        Self::move_by_with_tween(dx, dy, duration, mover_core::linear_tween)
+    pub fn move_by_with_duration(&mut self, dx: i32, dy: i32, duration: f64) -> MoverResult<()> {
+        self.move_by_with_tween(dx, dy, duration, mover_core::linear_tween)
     }
     
     /// Moves the mouse cursor relative to current position with custom tweening
-    pub fn move_by_with_tween(dx: i32, dy: i32, duration: f64, tween: TweenFn) -> MoverResult<()> {
-        let current_pos = Self::position()?;
+    pub fn move_by_with_tween(&mut self, dx: i32, dy: i32, duration: f64, tween: TweenFn) -> MoverResult<()> {
+        let current_pos = self.position()?;
         let target_x = current_pos.x + dx;
         let target_y = current_pos.y + dy;
-        Self::move_to_with_tween(target_x, target_y, duration, tween)
+        self.move_to_with_tween(target_x, target_y, duration, tween)
     }
     
     // Click Functions
     // ===============
     
     /// Performs a mouse click at the current position
-    pub fn click(button: Option<MouseButton>) -> MoverResult<()> {
+    /// 
+    /// This function performs a mouse click with the specified button.
+    /// If no button is specified, it defaults to the left button.
+    /// 
+    /// # Arguments
+    /// 
+    /// * `button` - The mouse button to click, or `None` for default (left)
+    /// 
+    /// # Returns
+    /// 
+    /// - `Ok(())` - Click performed successfully
+    /// - `Err(MoverError)` - If the click failed
+    /// 
+    /// # Examples
+    /// 
+    /// ```rust
+    /// use mover_mouse::Mouse;
+    /// use mover_core::types::MouseButton;
+    /// 
+    /// fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///     let mouse = Mouse::new()?;
+    ///     // Click with left button (default)
+    ///     mouse.click(None)?;
+    /// 
+    ///     // Click with specific button
+    ///     mouse.click(Some(MouseButton::Right))?;
+    ///     Ok(())
+    /// }
+    /// ```
+    pub fn click(&mut self, button: Option<MouseButton>) -> MoverResult<()> {
         let button = button.unwrap_or_default();
-        let mut enigo = Enigo::new(&Settings::default()).unwrap();
         
-        let enigo_button = Self::convert_button(button)?;
-        enigo.button(enigo_button, Direction::Click)
+        let enigo_button = self.convert_button(button)?;
+        self.enigo.button(enigo_button, Direction::Click)
             .map_err(|e| mover_core::MoverError::PlatformError(
                 mover_core::PlatformError::UnsupportedOperation(
                     format!("Failed to click mouse: {}", e)
@@ -182,198 +449,93 @@ impl Mouse {
     }
     
     /// Performs a mouse click at specific coordinates
-    pub fn click_at(x: i32, y: i32, button: Option<MouseButton>) -> MoverResult<()> {
-        Self::move_to(x, y)?;
-        Self::click(button)
+    pub fn click_at(&mut self, x: i32, y: i32, button: Option<MouseButton>) -> MoverResult<()> {
+        self.move_to(x, y)?;
+        self.click(button)
     }
     
     /// Performs a left mouse button click
-    pub fn left_click() -> MoverResult<()> {
-        Self::click(Some(MouseButton::Left))
-    }
-    
-    /// Performs a left mouse button click at specific coordinates
-    pub fn left_click_at(x: i32, y: i32) -> MoverResult<()> {
-        Self::click_at(x, y, Some(MouseButton::Left))
+    pub fn left_click(&mut self) -> MoverResult<()> {
+        self.click(Some(MouseButton::Left))
     }
     
     /// Performs a right mouse button click
-    pub fn right_click() -> MoverResult<()> {
-        Self::click(Some(MouseButton::Right))
-    }
-    
-    /// Performs a right mouse button click at specific coordinates
-    pub fn right_click_at(x: i32, y: i32) -> MoverResult<()> {
-        Self::click_at(x, y, Some(MouseButton::Right))
+    pub fn right_click(&mut self) -> MoverResult<()> {
+        self.click(Some(MouseButton::Right))
     }
     
     /// Performs a middle mouse button click
-    pub fn middle_click() -> MoverResult<()> {
-        Self::click(Some(MouseButton::Middle))
+    pub fn middle_click(&mut self) -> MoverResult<()> {
+        self.click(Some(MouseButton::Middle))
     }
     
-    /// Performs a middle mouse button click at specific coordinates
-    pub fn middle_click_at(x: i32, y: i32) -> MoverResult<()> {
-        Self::click_at(x, y, Some(MouseButton::Middle))
+    /// Performs a double click with the specified button
+    pub fn double_click(&mut self, button: Option<MouseButton>) -> MoverResult<()> {
+        self.click(button)?;
+        thread::sleep(Duration::from_millis(50));
+        self.click(button)
     }
     
-    /// Performs a double click
-    pub fn double_click(button: Option<MouseButton>) -> MoverResult<()> {
+    /// Performs a triple click with the specified button
+    pub fn triple_click(&mut self, button: Option<MouseButton>) -> MoverResult<()> {
+        self.click(button)?;
+        thread::sleep(Duration::from_millis(50));
+        self.click(button)?;
+        thread::sleep(Duration::from_millis(50));
+        self.click(button)
+    }
+    
+    /// Presses down a mouse button
+    pub fn mouse_down(&mut self, button: Option<MouseButton>) -> MoverResult<()> {
         let button = button.unwrap_or_default();
-        
-        // Enigo doesn't have double click, so we'll simulate it
-        for _ in 0..2 {
-            Self::click(Some(button))?;
-            thread::sleep(Duration::from_millis(50)); // Small delay between clicks
-        }
-        
-        Ok(())
-    }
-    
-    /// Performs a double click at specific coordinates
-    pub fn double_click_at(x: i32, y: i32, button: Option<MouseButton>) -> MoverResult<()> {
-        Self::move_to(x, y)?;
-        Self::double_click(button)
-    }
-    
-    /// Performs a triple click
-    pub fn triple_click(button: Option<MouseButton>) -> MoverResult<()> {
-        let button = button.unwrap_or_default();
-        
-        // Enigo doesn't have triple click, so we'll simulate it
-        for _ in 0..3 {
-            Self::click(Some(button))?;
-            thread::sleep(Duration::from_millis(50)); // Small delay between clicks
-        }
-        
-        Ok(())
-    }
-    
-    /// Performs a triple click at specific coordinates
-    pub fn triple_click_at(x: i32, y: i32, button: Option<MouseButton>) -> MoverResult<()> {
-        Self::move_to(x, y)?;
-        Self::triple_click(button)
-    }
-    
-    // Button State Control
-    // ====================
-    
-    /// Presses a mouse button down (but not up)
-    pub fn mouse_down(button: Option<MouseButton>) -> MoverResult<()> {
-        let button = button.unwrap_or_default();
-        let mut enigo = Enigo::new(&Settings::default()).unwrap();
-        
-        let enigo_button = Self::convert_button(button)?;
-        enigo.button(enigo_button, Direction::Press)
+        let enigo_button = self.convert_button(button)?;
+        self.enigo.button(enigo_button, Direction::Press)
             .map_err(|e| mover_core::MoverError::PlatformError(
                 mover_core::PlatformError::UnsupportedOperation(
                     format!("Failed to press mouse button: {}", e)
                 )
             ))?;
-        
         Ok(())
     }
     
-    /// Releases a mouse button up (but not down beforehand)
-    pub fn mouse_up(button: Option<MouseButton>) -> MoverResult<()> {
+    /// Releases a mouse button
+    pub fn mouse_up(&mut self, button: Option<MouseButton>) -> MoverResult<()> {
         let button = button.unwrap_or_default();
-        let mut enigo = Enigo::new(&Settings::default()).unwrap();
-        
-        let enigo_button = Self::convert_button(button)?;
-        enigo.button(enigo_button, Direction::Release)
+        let enigo_button = self.convert_button(button)?;
+        self.enigo.button(enigo_button, Direction::Release)
             .map_err(|e| mover_core::MoverError::PlatformError(
                 mover_core::PlatformError::UnsupportedOperation(
                     format!("Failed to release mouse button: {}", e)
                 )
             ))?;
-        
         Ok(())
     }
     
     // Drag Functions
-    // ==============
+    // ===============
     
-    /// Performs a mouse drag to absolute coordinates
-    pub fn drag_to(x: i32, y: i32, button: Option<MouseButton>) -> MoverResult<()> {
+    /// Drags the mouse from current position to the specified coordinates
+    pub fn drag_to(&mut self, x: i32, y: i32, button: Option<MouseButton>) -> MoverResult<()> {
         let button = button.unwrap_or_default();
-        
-        // Press the button
-        Self::mouse_down(Some(button))?;
-        
-        // Move to destination
-        Self::move_to(x, y)?;
-        
-        // Release the button
-        Self::mouse_up(Some(button))?;
-        
-        Ok(())
+        self.mouse_down(Some(button))?;
+        self.move_to(x, y)?;
+        self.mouse_up(Some(button))
     }
     
-    /// Performs a mouse drag to absolute coordinates with animation
-    pub fn drag_to_with_duration(x: i32, y: i32, button: Option<MouseButton>, duration: f64) -> MoverResult<()> {
-        Self::drag_to_with_tween(x, y, button, duration, mover_core::linear_tween)
+    /// Drags the mouse relative to current position
+    pub fn drag_by(&mut self, dx: i32, dy: i32, button: Option<MouseButton>) -> MoverResult<()> {
+        let current_pos = self.position()?;
+        let target_x = current_pos.x + dx;
+        let target_y = current_pos.y + dy;
+        self.drag_to(target_x, target_y, button)
     }
     
-    /// Performs a mouse drag to absolute coordinates with custom tweening
-    pub fn drag_to_with_tween(x: i32, y: i32, button: Option<MouseButton>, duration: f64, tween: TweenFn) -> MoverResult<()> {
-        let button = button.unwrap_or_default();
-        
-        // Press the button
-        Self::mouse_down(Some(button))?;
-        
-        // Move with tweening
-        Self::move_to_with_tween(x, y, duration, tween)?;
-        
-        // Release the button
-        Self::mouse_up(Some(button))?;
-        
-        Ok(())
-    }
+    // Scrolling Functions
+    // ===================
     
-    /// Performs a mouse drag relative to current position
-    pub fn drag_by(dx: i32, dy: i32, button: Option<MouseButton>) -> MoverResult<()> {
-        let button = button.unwrap_or_default();
-        
-        // Press the button
-        Self::mouse_down(Some(button))?;
-        
-        // Move relative
-        Self::move_by(dx, dy)?;
-        
-        // Release the button
-        Self::mouse_up(Some(button))?;
-        
-        Ok(())
-    }
-    
-    /// Performs a mouse drag relative to current position with animation
-    pub fn drag_by_with_duration(dx: i32, dy: i32, button: Option<MouseButton>, duration: f64) -> MoverResult<()> {
-        Self::drag_by_with_tween(dx, dy, button, duration, mover_core::linear_tween)
-    }
-    
-    /// Performs a mouse drag relative to current position with custom tweening
-    pub fn drag_by_with_tween(dx: i32, dy: i32, button: Option<MouseButton>, duration: f64, tween: TweenFn) -> MoverResult<()> {
-        let button = button.unwrap_or_default();
-        
-        // Press the button
-        Self::mouse_down(Some(button))?;
-        
-        // Move with tweening
-        Self::move_by_with_tween(dx, dy, duration, tween)?;
-        
-        // Release the button
-        Self::mouse_up(Some(button))?;
-        
-        Ok(())
-    }
-    
-    // Scroll Functions
-    // ================
-    
-    /// Performs a scroll of the mouse scroll wheel
-    pub fn scroll(clicks: i32) -> MoverResult<()> {
-        let mut enigo = Enigo::new(&Settings::default()).unwrap();
-        enigo.scroll(clicks, Axis::Vertical)
+    /// Performs vertical scrolling
+    pub fn scroll(&mut self, clicks: i32) -> MoverResult<()> {
+        self.enigo.scroll(clicks, Axis::Vertical)
             .map_err(|e| mover_core::MoverError::PlatformError(
                 mover_core::PlatformError::UnsupportedOperation(
                     format!("Failed to scroll: {}", e)
@@ -382,22 +544,14 @@ impl Mouse {
         Ok(())
     }
     
-    /// Performs a vertical scroll
-    pub fn vscroll(clicks: i32) -> MoverResult<()> {
-        let mut enigo = Enigo::new(&Settings::default()).unwrap();
-        enigo.scroll(clicks, Axis::Vertical)
-            .map_err(|e| mover_core::MoverError::PlatformError(
-                mover_core::PlatformError::UnsupportedOperation(
-                    format!("Failed to scroll vertically: {}", e)
-                )
-            ))?;
-        Ok(())
+    /// Performs vertical scrolling (alias for scroll)
+    pub fn vscroll(&mut self, clicks: i32) -> MoverResult<()> {
+        self.scroll(clicks)
     }
     
-    /// Performs a horizontal scroll
-    pub fn hscroll(clicks: i32) -> MoverResult<()> {
-        let mut enigo = Enigo::new(&Settings::default()).unwrap();
-        enigo.scroll(clicks, Axis::Horizontal)
+    /// Performs horizontal scrolling
+    pub fn hscroll(&mut self, clicks: i32) -> MoverResult<()> {
+        self.enigo.scroll(clicks, Axis::Horizontal)
             .map_err(|e| mover_core::MoverError::PlatformError(
                 mover_core::PlatformError::UnsupportedOperation(
                     format!("Failed to scroll horizontally: {}", e)
@@ -406,43 +560,25 @@ impl Mouse {
         Ok(())
     }
     
-    /// Performs a scroll at specific coordinates
-    pub fn scroll_at(clicks: i32, x: i32, y: i32) -> MoverResult<()> {
-        Self::move_to(x, y)?;
-        Self::scroll(clicks)
-    }
-    
-    /// Performs a vertical scroll at specific coordinates
-    pub fn vscroll_at(clicks: i32, x: i32, y: i32) -> MoverResult<()> {
-        Self::move_to(x, y)?;
-        Self::vscroll(clicks)
-    }
-    
-    /// Performs a horizontal scroll at specific coordinates
-    pub fn hscroll_at(clicks: i32, x: i32, y: i32) -> MoverResult<()> {
-        Self::move_to(x, y)?;
-        Self::hscroll(clicks)
-    }
-    
     // Utility Functions
     // =================
     
-    /// Gets a point on a line between two points at a given proportion
-    pub fn get_point_on_line(x1: i32, y1: i32, x2: i32, y2: i32, n: f64) -> Point {
-        let x = ((x2 - x1) as f64 * n) + x1 as f64;
-        let y = ((y2 - y1) as f64 * n) + y1 as f64;
-        Point::new(x as i32, y as i32)
+    /// Gets a point on a line between two points
+    pub fn get_point_on_line(&self, start: Point, end: Point, ratio: f64) -> Point {
+        let x = start.x + ((end.x - start.x) as f64 * ratio) as i32;
+        let y = start.y + ((end.y - start.y) as f64 * ratio) as i32;
+        Point::new(x, y)
     }
     
     /// Sleep for a given number of seconds
-    pub fn sleep(seconds: f64) {
+    pub fn sleep(&self, seconds: f64) {
         if seconds > 0.0 {
             thread::sleep(Duration::from_secs_f64(seconds));
         }
     }
     
-    /// Countdown timer
-    pub fn countdown(seconds: u32) {
+    /// Countdown timer with visual feedback
+    pub fn countdown(&self, seconds: u32) {
         for i in (1..=seconds).rev() {
             print!("{} ", i);
             std::io::stdout().flush().ok();
@@ -451,128 +587,59 @@ impl Mouse {
         println!("0");
     }
     
-    /// Converts mover MouseButton to enigo MouseButton.
-    fn convert_button(button: MouseButton) -> MoverResult<EnigoMouseButton> {
+    /// Convert MouseButton to enigo Button
+    fn convert_button(&self, button: MouseButton) -> MoverResult<EnigoMouseButton> {
         match button {
             MouseButton::Left => Ok(EnigoMouseButton::Left),
             MouseButton::Right => Ok(EnigoMouseButton::Right),
             MouseButton::Middle => Ok(EnigoMouseButton::Middle),
             MouseButton::Primary => Ok(EnigoMouseButton::Left), // Default to left
             MouseButton::Secondary => Ok(EnigoMouseButton::Right), // Default to right
-            MouseButton::Button4 => Ok(EnigoMouseButton::Left), // Enigo doesn't support Button4, fallback to Left
-            MouseButton::Button5 => Ok(EnigoMouseButton::Right), // Enigo doesn't support Button5, fallback to Right
-            MouseButton::Button6 => Ok(EnigoMouseButton::Left), // Enigo doesn't support Button6, fallback to Left
-            MouseButton::Button7 => Ok(EnigoMouseButton::Right), // Enigo doesn't support Button7, fallback to Right
+            MouseButton::Button4 => Ok(EnigoMouseButton::Left), // Fallback to left
+            MouseButton::Button5 => Ok(EnigoMouseButton::Right), // Fallback to right
+            MouseButton::Button6 => Ok(EnigoMouseButton::Left), // Fallback to left
+            MouseButton::Button7 => Ok(EnigoMouseButton::Right), // Fallback to right
         }
     }
 }
 
-// Convenience functions that mirror PyAutoGUI's API
-pub use Mouse as mouse;
-
-/// Alias for Mouse::position()
-pub fn position() -> MoverResult<Point> {
-    Mouse::position()
-}
-
-/// Alias for Mouse::size()
-pub fn size() -> MoverResult<Size> {
-    Mouse::size()
-}
-
-/// Alias for Mouse::on_screen()
-pub fn on_screen(x: i32, y: i32) -> MoverResult<bool> {
-    Mouse::on_screen(x, y)
-}
-
-/// Alias for Mouse::move_to()
-pub fn move_to(x: i32, y: i32) -> MoverResult<()> {
-    Mouse::move_to(x, y)
-}
-
-/// Alias for Mouse::move_by()
-pub fn move_by(dx: i32, dy: i32) -> MoverResult<()> {
-    Mouse::move_by(dx, dy)
-}
-
-/// Alias for Mouse::click()
-pub fn click(button: Option<MouseButton>) -> MoverResult<()> {
-    Mouse::click(button)
-}
-
-/// Alias for Mouse::left_click()
-pub fn left_click() -> MoverResult<()> {
-    Mouse::left_click()
-}
-
-/// Alias for Mouse::right_click()
-pub fn right_click() -> MoverResult<()> {
-    Mouse::right_click()
-}
-
-/// Alias for Mouse::middle_click()
-pub fn middle_click() -> MoverResult<()> {
-    Mouse::middle_click()
-}
-
-/// Alias for Mouse::double_click()
-pub fn double_click(button: Option<MouseButton>) -> MoverResult<()> {
-    Mouse::double_click(button)
-}
-
-/// Alias for Mouse::triple_click()
-pub fn triple_click(button: Option<MouseButton>) -> MoverResult<()> {
-    Mouse::triple_click(button)
-}
-
-/// Alias for Mouse::drag_to()
-pub fn drag_to(x: i32, y: i32, button: Option<MouseButton>) -> MoverResult<()> {
-    Mouse::drag_to(x, y, button)
-}
-
-/// Alias for Mouse::drag_by()
-pub fn drag_by(dx: i32, dy: i32, button: Option<MouseButton>) -> MoverResult<()> {
-    Mouse::drag_by(dx, dy, button)
-}
-
-/// Alias for Mouse::scroll()
-pub fn scroll(clicks: i32) -> MoverResult<()> {
-    Mouse::scroll(clicks)
-}
-
-/// Alias for Mouse::vscroll()
-pub fn vscroll(clicks: i32) -> MoverResult<()> {
-    Mouse::vscroll(clicks)
-}
-
-/// Alias for Mouse::hscroll()
-pub fn hscroll(clicks: i32) -> MoverResult<()> {
-    Mouse::hscroll(clicks)
-}
+// No aliases - users should call Mouse::method() directly
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn test_mouse_button_conversion() {
-        assert!(Mouse::convert_button(MouseButton::Left).is_ok());
-        assert!(Mouse::convert_button(MouseButton::Right).is_ok());
-        assert!(Mouse::convert_button(MouseButton::Middle).is_ok());
-        assert!(Mouse::convert_button(MouseButton::Primary).is_ok());
-        assert!(Mouse::convert_button(MouseButton::Secondary).is_ok());
+    fn test_mouse_creation() {
+        let mouse = Mouse::new();
+        assert!(mouse.is_ok());
     }
 
     #[test]
-    fn test_point_on_line() {
-        let point = Mouse::get_point_on_line(0, 0, 100, 100, 0.5);
-        assert_eq!(point, Point::new(50, 50));
+    fn test_screen_size() {
+        let mouse = Mouse::new().unwrap();
+        let size = mouse.size();
+        assert!(size.is_ok());
+        let size = size.unwrap();
+        assert!(size.width > 0);
+        assert!(size.height > 0);
+    }
+
+    #[test]
+    fn test_position() {
+        let mouse = Mouse::new().unwrap();
+        let pos = mouse.position();
+        assert!(pos.is_ok());
+        let pos = pos.unwrap();
+        assert!(pos.x >= 0);
+        assert!(pos.y >= 0);
     }
 
     #[test]
     fn test_on_screen() {
-        // This test might fail if run on a very small screen
-        let result = Mouse::on_screen(100, 100);
-        assert!(result.is_ok());
+        let mouse = Mouse::new().unwrap();
+        let on_screen = mouse.on_screen(100, 100);
+        assert!(on_screen.is_ok());
+        assert!(on_screen.unwrap());
     }
 }

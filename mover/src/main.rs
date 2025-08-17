@@ -7,11 +7,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{}", mover::info());
     
     // Get screen size
-    let screen_size = mover_mouse::size()?;
+    let screen_size = mover_mouse::Mouse::size()?;
     println!("Screen size: {}", screen_size);
     
     // Get current mouse position
-    let current_pos = position()?;
+    let current_pos = mover_mouse::Mouse::position()?;
     println!("Current mouse position: {}", current_pos);
     
     // Example: Move mouse to center of screen
@@ -19,21 +19,21 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let center_y = screen_size.height / 2;
     
     println!("Moving mouse to center of screen: ({}, {})", center_x, center_y);
-    move_to(center_x, center_y)?;
+    mover_mouse::Mouse::move_to(center_x, center_y)?;
     
     // Wait a moment
     std::thread::sleep(std::time::Duration::from_secs(1));
     
     // Example: Click at center
     println!("Clicking at center");
-    click(None)?;
+    mover_mouse::Mouse::click(None)?;
     
     // Wait a moment
     std::thread::sleep(std::time::Duration::from_secs(1));
     
     // Example: Move back to original position
     println!("Moving back to original position: {}", current_pos);
-    move_to(current_pos.x, current_pos.y)?;
+    mover_mouse::Mouse::move_to(current_pos.x, current_pos.y)?;
     
     println!("Demo completed successfully!");
     
